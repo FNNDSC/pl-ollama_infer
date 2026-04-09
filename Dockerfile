@@ -1,22 +1,37 @@
-# Python version can be changed, e.g.
-# FROM python:3.8
-# FROM ghcr.io/mamba-org/micromamba:1.5.1-focal-cuda-11.3.1
-FROM docker.io/python:3.12.1-slim-bookworm
+FROM ollama/ollama
 
 LABEL org.opencontainers.image.authors="FNNDSC <dev@babyMRI.org>" \
-      org.opencontainers.image.title="ChRIS Plugin Title" \
-      org.opencontainers.image.description="A ChRIS plugin that..."
+      org.opencontainers.image.title="A ChRIS plugin to run an ollama server" \
+      org.opencontainers.image.description="A ChRIS plugin to run an ollama server"
 
-ARG SRCDIR=/usr/local/src/app
+# Install Python + venv support
+RUN apt-get update && apt-get install -y python3 python3-venv python3-pip
+
+ARG SRCDIR=/usr/local/src/pl-ollama_infer
 WORKDIR ${SRCDIR}
 
-COPY requirements.txt .
-RUN --mount=type=cache,sharing=private,target=/root/.cache/pip pip install -r requirements.txt
+# Create virtual environment
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
+# Copy requirements first (for caching)
+COPY requirements.txt .
+
+# Install dependencies using venv pip
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy rest of code
 COPY . .
+
 ARG extras_require=none
+
+# Install your package inside venv
 RUN pip install ".[${extras_require}]" \
     && cd / && rm -rf ${SRCDIR}
+RUN ollama serve & \
+    sleep 5 && \
+    ollama pull llama3
 WORKDIR /
-
-CMD ["commandname"]
+ENTRYPOINT []
+CMD ["ollama_infer"]
