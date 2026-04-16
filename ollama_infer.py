@@ -3,8 +3,26 @@
 from pathlib import Path
 from argparse import ArgumentParser, Namespace, ArgumentDefaultsHelpFormatter
 import subprocess
+import requests
 import time
 from chris_plugin import chris_plugin, PathMapper
+from loguru import logger
+import sys
+import os
+import socket
+
+LOG             = logger.debug
+logger_format = (
+    "<green>{time:YYYY-MM-DD HH:mm:ss}</green> │ "
+    "<level>{level: <5}</level> │ "
+    "<yellow>{name: >28}</yellow>::"
+    "<cyan>{function: <30}</cyan> @"
+    "<cyan>{line: <4}</cyan> ║ "
+    "<level>{message}</level>"
+)
+logger.remove()
+logger.opt(colors = True)
+logger.add(sys.stderr, format=logger_format)
 
 __version__ = '1.0.0'
 
@@ -28,9 +46,23 @@ parser.add_argument('-p', '--prompt', default='test', type=str,
                     help='input prompt for the model')
 parser.add_argument('-m', '--model', default='llama3', type=str,
                     help='specify which ollama model to use')
+parser.add_argument('-s', '--serviceMode', default=False, action="store_true",
+                    help='If specified as true, keep the ollama server running.')
 parser.add_argument('-V', '--version', action='version',
                     version=f'%(prog)s {__version__}')
-
+def preamble_show(options: Namespace) -> None:
+    """
+    Just show some preamble "noise" in the output terminal
+    """
+    LOG(DISPLAY_TITLE)
+    LOG("plugin arguments...")
+    for k,v in options.__dict__.items():
+         LOG("%25s:  [%s]" % (k, v))
+    LOG("")
+    LOG("base environment...")
+    for k,v in os.environ.items():
+         LOG("%25s:  [%s]" % (k, v))
+    LOG("")
 
 # The main function of this *ChRIS* plugin is denoted by this ``@chris_plugin`` "decorator."
 # Some metadata about the plugin is specified here. There is more metadata specified in setup.py.
@@ -55,15 +87,19 @@ def main(options: Namespace, inputdir: Path, outputdir: Path):
     :param outputdir: directory where to write output files
     """
 
-    print(DISPLAY_TITLE)
+    preamble_show(options)
+    ip_address = socket.gethostbyname(socket.gethostname())
+    LOG(f"Container IP: {ip_address}")
     subprocess.Popen(
         ["ollama", "serve"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         start_new_session=True
     )
-    # Wait for it
+    # wait
     time.sleep(2)
+
+    # test
     result = subprocess.run(
         ["ollama", "run", options.model, options.prompt],
         capture_output=True,
@@ -71,10 +107,47 @@ def main(options: Namespace, inputdir: Path, outputdir: Path):
     )
 
     if result.returncode != 0:
-        print("Error:", result.stderr)
+        LOG("Error:", result.stderr)
     else:
-        print(result.stdout)
+        LOG(result.stdout)
 
+    # serve
+    # This prevents the Python script (and the container) from exiting
+    try:
+        while options.serviceMode:
+            LOG(f"Server in now running: {ip_address} and ready to serve")
+            time.sleep(1)
+    except KeyboardInterrupt:
+        LOG("Stopping...")
+
+
+def wait_for_ollama(url="http://localhost:11434", timeout=30):
+    for _ in range(timeout):
+        try:
+            requests.get(url, timeout=1)
+            return True
+        except Exception:
+            time.sleep(1)
+    return False
+
+
+def call_ollama(model, prompt, num_ctx=2048):
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "stream": False,
+        "options": {
+            "num_ctx": num_ctx
+        }
+    }
+
+    response = requests.post(
+        "http://localhost:11434/api/generate",
+        json=payload
+    )
+
+    response.raise_for_status()
+    return response.json()["response"]
 
 if __name__ == '__main__':
     main()
