@@ -1,36 +1,53 @@
-# A ChRIS plugin to run an `ollama` server 
+# A ChRIS plugin to run an `ollama` server
 
 [![Version](https://img.shields.io/docker/v/fnndsc/pl-ollama_infer?sort=semver)](https://hub.docker.com/r/fnndsc/pl-ollama_infer)
 [![MIT License](https://img.shields.io/github/license/fnndsc/pl-ollama_infer)](https://github.com/FNNDSC/pl-ollama_infer/blob/main/LICENSE)
 [![ci](https://github.com/FNNDSC/pl-ollama_infer/actions/workflows/ci.yml/badge.svg)](https://github.com/FNNDSC/pl-ollama_infer/actions/workflows/ci.yml)
 
-`pl-ollama_infer` is a [_ChRIS_](https://chrisproject.org/)
-_ds_ plugin which takes in ...  as input files and
-creates ... as output files.
+`pl-ollama_infer` is a ChRIS plugin that starts a local Ollama server, runs model inference using a provided prompt, and optionally keeps the server running for service mode usage.
+
+---
 
 ## Abstract
 
-...
+This plugin launches an Ollama server inside a ChRIS container environment, executes inference using a specified model and prompt, and optionally keeps the server active for continued interaction.
+
+It is intended for workflows requiring lightweight LLM inference within containerized pipelines, including structured text generation and data interpretation tasks.
+
+---
+
+## Features
+
+- Starts `ollama serve` inside the container
+- Executes inference using configurable model and prompt
+- Supports persistent server mode via `--serviceMode`
+- Logs runtime environment for debugging and reproducibility
+
+---
 
 ## Installation
 
-`pl-ollama_infer` is a _[ChRIS](https://chrisproject.org/) plugin_, meaning it can
-run from either within _ChRIS_ or the command-line.
+`pl-ollama_infer` is a ChRIS plugin and can be executed either within the ChRIS platform or via container runtimes.
+
+---
 
 ## Local Usage
 
-To get started with local command-line usage, use [Apptainer](https://apptainer.org/)
-(a.k.a. Singularity) to run `pl-ollama_infer` as a container:
+Using Apptainer:
 
 ```shell
 apptainer exec docker://fnndsc/pl-ollama_infer ollama_infer [--args values...] input/ output/
-```
-
 To print its available options, run:
 
 ```shell
 apptainer exec docker://fnndsc/pl-ollama_infer ollama_infer --help
 ```
+| Argument        | Default  | Description                                |
+| --------------- | -------- | ------------------------------------------ |
+| `--prompt`      | `test`   | Input prompt for the model                 |
+| `--model`       | `llama3` | Ollama model to use                        |
+| `--serviceMode` | `False`  | Keep Ollama server running after inference |
+| `--version`     | -        | Show plugin version                        |
 
 ## Examples
 
@@ -41,7 +58,27 @@ First, create the input directory and move input data into it.
 ```shell
 mkdir incoming/ outgoing/
 mv some.dat other.dat incoming/
-apptainer exec docker://fnndsc/pl-ollama_infer:latest ollama_infer [--args] incoming/ outgoing/
+apptainer exec docker://fnndsc/pl-ollama_infer ollama_infer \
+    --prompt "Explain pulmonary embolism briefly" \
+    --model llama3 \
+    incoming/ outgoing/
+```
+
+Using a larger model
+
+```shell
+apptainer exec docker://fnndsc/pl-ollama_infer ollama_infer \
+    --prompt "Summarize CT chest findings" \
+    --model llama3:70b \
+    incoming/ outgoing/
+```
+
+Service mode
+
+```shell
+apptainer exec docker://fnndsc/pl-ollama_infer ollama_infer \
+    --serviceMode \
+    incoming/ outgoing/
 ```
 
 ## Development

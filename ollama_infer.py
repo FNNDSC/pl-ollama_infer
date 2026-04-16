@@ -38,9 +38,7 @@ DISPLAY_TITLE = r"""
 """
 
 
-parser = ArgumentParser(description='!!!CHANGE ME!!! An example ChRIS plugin which '
-                                    'counts the number of occurrences of a given '
-                                    'word in text files.',
+parser = ArgumentParser(description='A ChRIS plugin to run an ollama server ',
                         formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('-p', '--prompt', default='test', type=str,
                     help='input prompt for the model')
@@ -120,34 +118,6 @@ def main(options: Namespace, inputdir: Path, outputdir: Path):
     except KeyboardInterrupt:
         LOG("Stopping...")
 
-
-def wait_for_ollama(url="http://localhost:11434", timeout=30):
-    for _ in range(timeout):
-        try:
-            requests.get(url, timeout=1)
-            return True
-        except Exception:
-            time.sleep(1)
-    return False
-
-
-def call_ollama(model, prompt, num_ctx=2048):
-    payload = {
-        "model": model,
-        "prompt": prompt,
-        "stream": False,
-        "options": {
-            "num_ctx": num_ctx
-        }
-    }
-
-    response = requests.post(
-        "http://localhost:11434/api/generate",
-        json=payload
-    )
-
-    response.raise_for_status()
-    return response.json()["response"]
 
 if __name__ == '__main__':
     main()
