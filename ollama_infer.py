@@ -3,14 +3,20 @@
 from pathlib import Path
 from argparse import ArgumentParser, Namespace, ArgumentDefaultsHelpFormatter
 import subprocess
-import requests
+import subprocess
+import signal
+import threading
+import time
+import socket
+from flask import Flask, jsonify
 import time
 from chris_plugin import chris_plugin, PathMapper
 from loguru import logger
 import sys
 import os
 import socket
-
+shutdown_flag = False
+app = Flask(__name__)
 LOG             = logger.debug
 logger_format = (
     "<green>{time:YYYY-MM-DD HH:mm:ss}</green> │ "
@@ -75,29 +81,18 @@ def preamble_show(options: Namespace) -> None:
     min_gpu_limit=0              # set min_gpu_limit=1 to enable GPU
 )
 def main(options: Namespace, inputdir: Path, outputdir: Path):
-    """
-    *ChRIS* plugins usually have two positional arguments: an **input directory** containing
-    input files and an **output directory** where to write output files. Command-line arguments
-    are passed to this main method implicitly when ``main()`` is called below without parameters.
-
-    :param options: non-positional arguments parsed by the parser given to @chris_plugin
-    :param inputdir: directory containing (read-only) input files
-    :param outputdir: directory where to write output files
-    """
 
     preamble_show(options)
     ip_address = socket.gethostbyname(socket.gethostname())
     LOG(f"Container IP: {ip_address}")
-    subprocess.Popen(
-        ["ollama", "serve"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True
-    )
-    # wait
-    time.sleep(2)
 
-    # test
+    # start ollama
+    start_ollama()
+
+    # start control API
+    threading.Thread(target=run_control_server, daemon=True).start()
+
+    # optional test inference
     result = subprocess.run(
         ["ollama", "run", options.model, options.prompt],
         capture_output=True,
@@ -109,15 +104,35 @@ def main(options: Namespace, inputdir: Path, outputdir: Path):
     else:
         LOG(result.stdout)
 
-    # serve
-    # This prevents the Python script (and the container) from exiting
+
+    # keep alive
     try:
-        while options.serviceMode:
-            LOG(f"Server in now running: {ip_address} and ready to serve")
+        while options.serviceMode and not shutdown_flag:
             time.sleep(1)
     except KeyboardInterrupt:
-        LOG("Stopping...")
+        LOG(f"Shutting down...")
 
+def start_ollama():
+    process = subprocess.Popen(
+        ["ollama", "serve"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True
+    )
+    # wait
+    time.sleep(2)
+
+@app.route("/kill", methods=["GET", "POST"])
+def kill():
+    LOG(f"Shutting down ollama server gracefully")
+    global shutdown_flag
+    shutdown_flag = True
+    return jsonify({"status": "ok"})
+
+
+
+def run_control_server():
+    app.run(host="0.0.0.0", port=5000)
 
 if __name__ == '__main__':
     main()
