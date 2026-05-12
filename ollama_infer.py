@@ -30,7 +30,7 @@ logger.remove()
 logger.opt(colors = True)
 logger.add(sys.stderr, format=logger_format)
 
-__version__ = '1.0.0'
+__version__ = '1.0.1'
 
 DISPLAY_TITLE = r"""
        _             _ _                         _        __          
@@ -52,6 +52,8 @@ parser.add_argument('-m', '--model', default='llama3', type=str,
                     help='specify which ollama model to use')
 parser.add_argument('-s', '--serviceMode', default=False, action="store_true",
                     help='If specified as true, keep the ollama server running.')
+parser.add_argument('-t', '--time', default=5, type=int,
+                    help='wait time (in seconds) for the ollama server to be ready for inference')
 parser.add_argument('-V', '--version', action='version',
                     version=f'%(prog)s {__version__}')
 def preamble_show(options: Namespace) -> None:
@@ -87,7 +89,7 @@ def main(options: Namespace, inputdir: Path, outputdir: Path):
     LOG(f"Container IP: {ip_address}")
 
     # start ollama
-    start_ollama()
+    start_ollama(options.time)
 
     # start control API
     threading.Thread(target=run_control_server, daemon=True).start()
@@ -112,7 +114,7 @@ def main(options: Namespace, inputdir: Path, outputdir: Path):
     except KeyboardInterrupt:
         LOG(f"Shutting down...")
 
-def start_ollama():
+def start_ollama(wait_time: int):
     process = subprocess.Popen(
         ["ollama", "serve"],
         stdout=subprocess.DEVNULL,
@@ -120,7 +122,7 @@ def start_ollama():
         start_new_session=True
     )
     # wait
-    time.sleep(2)
+    time.sleep(wait_time)
 
 @app.route("/kill", methods=["GET", "POST"])
 def kill():
