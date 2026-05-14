@@ -33,17 +33,17 @@ ARG extras_require=none
 RUN pip install ".[${extras_require}]" && \
     cd / && rm -rf ${SRCDIR}
 
-# ✅ Create user FIRST
+# ✅ Ollama model cache location
+ENV OLLAMA_MODELS=/opt/ollama/models
+ENV OLLAMA_HOME=/opt/ollama
+RUN mkdir -p /opt/ollama/models && chmod -R a+rwX /opt/ollama
+
+# ✅ Copy models correctly - extract just the models from downloader
+COPY --from=downloader /root/.ollama/models /opt/ollama/models
+
+# ✅ Create user
 RUN useradd -m -u 10001 appuser
 
-# ✅ Copy models to correct location
-COPY --from=downloader /root/.ollama /home/appuser/.ollama
-
-# ✅ Fix ownership BEFORE switching user
-RUN chown -R appuser:appuser /home/appuser/.ollama
-
-# ✅ Set correct model path
-ENV OLLAMA_MODELS="/home/appuser/.ollama/models"
 
 # ✅ Switch user
 USER appuser
