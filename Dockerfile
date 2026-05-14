@@ -34,7 +34,7 @@ RUN pip install ".[${extras_require}]" && \
     cd / && rm -rf ${SRCDIR}
 
 # ✅ Create user FIRST
-RUN useradd -m appuser
+RUN useradd -m -u 10001 appuser
 
 # ✅ Copy models to correct location
 COPY --from=downloader /root/.ollama /home/appuser/.ollama

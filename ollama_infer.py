@@ -3,11 +3,8 @@
 from pathlib import Path
 from argparse import ArgumentParser, Namespace, ArgumentDefaultsHelpFormatter
 import subprocess
-import subprocess
-import signal
+import traceback
 import threading
-import time
-import socket
 from flask import Flask, jsonify
 import time
 from chris_plugin import chris_plugin, PathMapper
@@ -15,6 +12,7 @@ from loguru import logger
 import sys
 import os
 import socket
+
 shutdown_flag = False
 app = Flask(__name__)
 LOG             = logger.debug
@@ -30,7 +28,7 @@ logger.remove()
 logger.opt(colors = True)
 logger.add(sys.stderr, format=logger_format)
 
-__version__ = '1.0.1'
+__version__ = '1.1.1'
 
 DISPLAY_TITLE = r"""
        _             _ _                         _        __          
@@ -90,9 +88,12 @@ def main(options: Namespace, inputdir: Path, outputdir: Path):
     start_ollama(options.time)
 
     # test ollama server
-    test_ollama(options.model, options.prompt)
+    inference = test_ollama(options.model, options.prompt)
 
     # save results to output files
+    output_file_path = outputdir / 'inference.txt'
+    with open(output_file_path, 'w') as f:
+        f.write(inference)
 
     # keep server alive logic
     if options.serviceMode:
@@ -112,8 +113,7 @@ def main(options: Namespace, inputdir: Path, outputdir: Path):
 def test_ollama(model: str, prompt: str) -> str:
     cmd = ["ollama", "run", model, prompt]
 
-    print("Running command:")
-    print(" ".join(cmd))
+    LOG(f'Running command: {" ".join(cmd)}')
 
     try:
         process = subprocess.Popen(
@@ -123,21 +123,26 @@ def test_ollama(model: str, prompt: str) -> str:
             text=True
         )
 
-        for line in process.stdout:
-            print(line, end="")
-
-        process.wait()
-
-        print("\nExit code:", process.returncode)
+        output, _ = process.communicate()
 
         if process.returncode != 0:
-            print("Ollama failed")
+            LOG(f"Ollama inference failed (exit code {process.returncode})")
+        else:
+            LOG(f"Exit code: {process.returncode}")
+
+        LOG(output)
+
+        return output
 
     except FileNotFoundError:
-        print("ERROR: Ollama executable not found")
+        msg = "ERROR: Ollama executable not found"
+        LOG(msg)
+        return msg
 
     except Exception:
         traceback.print_exc()
+        return "ERROR: unexpected exception"
+
 
 def start_ollama(wait_time: int):
     process = subprocess.Popen(
@@ -159,7 +164,7 @@ def start_ollama(wait_time: int):
             f"STDOUT:\n{stdout}\n\n"
             f"STDERR:\n{stderr}"
         )
-    print("Ollama server is running")
+    LOG("Ollama server is running")
 
 
 @app.route("/kill", methods=["GET", "POST"])
