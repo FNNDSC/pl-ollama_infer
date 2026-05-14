@@ -85,44 +85,82 @@ def preamble_show(options: Namespace) -> None:
 def main(options: Namespace, inputdir: Path, outputdir: Path):
 
     preamble_show(options)
-    ip_address = socket.gethostbyname(socket.gethostname())
-    LOG(f"Container IP: {ip_address}")
 
     # start ollama
     start_ollama(options.time)
 
-    # start control API
-    threading.Thread(target=run_control_server, daemon=True).start()
+    # test ollama server
+    test_ollama(options.model, options.prompt)
 
-    # optional test inference
-    result = subprocess.run(
-        ["ollama", "run", options.model, options.prompt],
-        capture_output=True,
-        text=True
-    )
+    # save results to output files
 
-    if result.returncode != 0:
-        LOG("Error:", result.stderr)
-    else:
-        LOG(result.stdout)
+    # keep server alive logic
+    if options.serviceMode:
 
+        # expose container ip for client programs to reach ollama server API endpoints for inference
+        ip_address = socket.gethostbyname(socket.gethostname())
+        LOG(f"Container IP: {ip_address}")
 
-    # keep alive
+        # start control API
+        threading.Thread(target=run_control_server, daemon=True).start()
+        try:
+            while not shutdown_flag:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            LOG(f"Shutting down...")
+
+def test_ollama(model: str, prompt: str) -> str:
+    cmd = ["ollama", "run", model, prompt]
+
+    print("Running command:")
+    print(" ".join(cmd))
+
     try:
-        while options.serviceMode and not shutdown_flag:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        LOG(f"Shutting down...")
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True
+        )
+
+        for line in process.stdout:
+            print(line, end="")
+
+        process.wait()
+
+        print("\nExit code:", process.returncode)
+
+        if process.returncode != 0:
+            print("Ollama failed")
+
+    except FileNotFoundError:
+        print("ERROR: Ollama executable not found")
+
+    except Exception:
+        traceback.print_exc()
 
 def start_ollama(wait_time: int):
     process = subprocess.Popen(
         ["ollama", "serve"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
         start_new_session=True
     )
     # wait
     time.sleep(wait_time)
+    # check if process already died
+    if process.poll() is not None:
+        stdout, stderr = process.communicate()
+
+        raise RuntimeError(
+            f"Ollama server failed to start.\n\n"
+            f"Exit code: {process.returncode}\n\n"
+            f"STDOUT:\n{stdout}\n\n"
+            f"STDERR:\n{stderr}"
+        )
+    print("Ollama server is running")
+
 
 @app.route("/kill", methods=["GET", "POST"])
 def kill():
@@ -130,8 +168,6 @@ def kill():
     global shutdown_flag
     shutdown_flag = True
     return jsonify({"status": "ok"})
-
-
 
 def run_control_server():
     app.run(host="0.0.0.0", port=5000)
