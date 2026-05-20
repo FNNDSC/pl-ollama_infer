@@ -19,9 +19,11 @@ It is intended for workflows requiring lightweight LLM inference within containe
 ## Features
 
 - Starts `ollama serve` inside the container
-- Executes inference using configurable model and prompt
-- Supports persistent server mode via `--serviceMode`
-- Logs runtime environment for debugging and reproducibility
+- Runs inference using `ollama run <model> <prompt>`
+- Writes output to `output/inference.txt`
+- Optional persistent server mode (`--serviceMode`)
+- Exposes a simple control API (`/kill`)
+- Logs environment for reproducibility
 
 ---
 
@@ -42,12 +44,17 @@ To print its available options, run:
 ```shell
 apptainer exec docker://fnndsc/pl-ollama_infer ollama_infer --help
 ```
-| Argument        | Default  | Description                                |
-| --------------- | -------- | ------------------------------------------ |
-| `--prompt`      | `test`   | Input prompt for the model                 |
-| `--model`       | `llama3` | Ollama model to use                        |
+## CLI Arguments
+
+| Argument        | Default   | Description |
+|----------------|----------|-------------|
+| `--prompt`      | `test`   | Input prompt for the model |
+| `--model`       | `llama3` | Ollama model to use |
 | `--serviceMode` | `False`  | Keep Ollama server running after inference |
-| `--version`     | -        | Show plugin version                        |
+| `--time`        | `5`      | Wait time (seconds) for server startup |
+| `--version`     | -        | Show plugin version |
+
+---
 
 ## Examples
 

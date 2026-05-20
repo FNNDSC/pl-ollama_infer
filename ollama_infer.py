@@ -13,6 +13,10 @@ import sys
 import os
 import socket
 
+env = os.environ.copy()
+env["TERM"] = "dumb"
+env["NO_COLOR"] = "1"
+
 shutdown_flag = False
 app = Flask(__name__)
 LOG             = logger.debug
@@ -120,7 +124,8 @@ def test_ollama(model: str, prompt: str) -> str:
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            text=True
+            text=True,
+            env=env
         )
 
         output, _ = process.communicate()
